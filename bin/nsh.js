@@ -2,7 +2,6 @@
 require("dotenv").config();
 
 const { exec } = require("child_process");
-
 const readline = require("readline");
 const {
   makeClient,
@@ -21,8 +20,7 @@ if (!TOKEN || !ROOT_ID) {
     "Missing config. Set both env vars before running:\n" +
       "  NOTION_TOKEN=secret_...        (your internal integration token)\n" +
       "  NOTION_ROOT_PAGE_ID=...        (the page ID to treat as your root '/')\n\n" +
-      "Also make sure that page is shared with your integration in Notion\n" +
-      "(••• menu on the page -> Connections -> your integration).",
+      "Also make sure that page is shared with your integration in Notion\n",
   );
   process.exit(1);
 }
@@ -140,6 +138,30 @@ async function cmdMkdir(args) {
   console.log(`created "${name}"`);
 }
 
+function cmdOpenWeb() {
+  const url = `https://www.notion.so/${cwd().id.replace(/-/g, "")}`;
+  console.log(`opening ${pwdString()} ...`);
+  openUrl(url);
+}
+
+function cmdOpenApp() {
+  const url = `notion://www.notion.so/${cwd().id.replace(/-/g, "")}`;
+  console.log(`syncing Notion app to ${pwdString()} ...`);
+  openUrl(url);
+}
+
+function cmdOpen() {
+  if (process.env.APPLICATION_TYPE === "app") {
+    cmdOpenApp();
+  } else if (process.env.APPLICATION_TYPE === "web") {
+    cmdOpenWeb();
+  } else {
+    console.log(
+      "APPLICATION_TYPE env var not set. Set it to either 'desktop' or 'web'.",
+    );
+  }
+}
+
 function cmdHelp() {
   console.log(
     [
@@ -156,12 +178,6 @@ function cmdHelp() {
       "exit | quit    leave the shell",
     ].join("\n"),
   );
-}
-
-function cmdOpen() {
-  const url = `https://www.notion.so/${cwd().id.replace(/-/g, "")}`;
-  console.log(`opening ${pwdString()} ...`);
-  openUrl(url);
 }
 
 async function handleLine(line) {
@@ -211,10 +227,56 @@ async function handleLine(line) {
   }
 }
 
+// This should be in a seperate config file
+const NO_ARG_COMPLETE = new Set(["cd", "cat", "find"]);
+const ALL_COMMANDS = [
+  "ls",
+  "cd",
+  "pwd",
+  "cat",
+  "find",
+  "mkdir",
+  "open",
+  "clear",
+  "cls",
+  "help",
+  "exit",
+  "quit",
+];
+
+function completer(line, callback) {
+  const parts = line.trim().split(/\s+/);
+
+  if (parts.length === 1) {
+    const partial = parts[0];
+    const hits = ALL_COMMANDS.filter((c) => c.startsWith(partial));
+
+    return callback(null, [hits, partial]);
+  }
+
+  const cmd = parts[0];
+  const partial = parts[parts.length - 1];
+
+  if (!NO_ARG_COMPLETE.has(cmd)) {
+    return callback(null, [[], partial]);
+  }
+
+  listDir(client, cwd().id)
+    .then(({ dirs }) => {
+      const names = dirs.map((d) => d.title);
+      const hits = names.filter((n) =>
+        n.toLowerCase().startsWith(partial.toLowerCase()),
+      );
+      callback(null, [hits, partial]);
+    })
+    .catch((err) => callback(null, [[], partial]));
+}
+
 const rl = readline.createInterface({
   input: process.stdin,
   output: process.stdout,
   prompt: "",
+  completer,
 });
 
 console.log("notion-shell — type 'help' for commands, 'exit' to quit\n");
