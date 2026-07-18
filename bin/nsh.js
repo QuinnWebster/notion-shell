@@ -48,7 +48,6 @@ function pwdString() {
 }
 
 function openUrl(url) {
-  print("Test");
   const platform = process.platform;
   const cmd =
     platform === "win32"
