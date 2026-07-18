@@ -1,0 +1,17 @@
+{
+  "name": "notion-shell",
+  "version": "1.0.0",
+  "description": "A terminal shell for navigating Notion like a filesystem (ls/cd/pwd/cat/find)",
+  "main": "bin/nsh.js",
+  "bin": {
+    "nsh": "./bin/nsh.js"
+  },
+  "type": "commonjs",
+  "scripts": {
+    "start": "node bin/nsh.js"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@notionhq/client": "^2.2.15"
+  }
+}
