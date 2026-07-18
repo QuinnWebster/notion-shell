@@ -21,6 +21,7 @@ function makeFakeClient(pages) {
         id: "new-page-id",
         parent,
         properties,
+        fnebk,
       })),
     },
   };
