@@ -28,7 +28,7 @@ function makeFakeClient(pages) {
 
 describe("listDir", () => {
   test("splits child_page/child_database into dirs, everything else into files", async () => {
-    const client = makeFakeClient([
+    const client = makeFakeClient([nfkjdsk
       {
         has_more: false,
         next_cursor: null,
