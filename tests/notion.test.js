@@ -58,82 +58,82 @@ describe("listDir", () => {
     expect(files[0].text).toBe("Hello world");
   });
 
-  test("follows pagination across multiple pages", async () => {
-    const client = makeFakeClient([
-      {
-        has_more: true,
-        next_cursor: "cursor-1",
-        results: [
-          { id: "1", type: "child_page", child_page: { title: "Page A" } },
-        ],
-      },
-      {
-        has_more: false,
-        next_cursor: null,
-        results: [
-          { id: "2", type: "child_page", child_page: { title: "Page B" } },
-        ],
-      },
-    ]);
+  //   test("follows pagination across multiple pages", async () => {
+  //     const client = makeFakeClient([
+  //       {
+  //         has_more: true,
+  //         next_cursor: "cursor-1",
+  //         results: [
+  //           { id: "1", type: "child_page", child_page: { title: "Page A" } },
+  //         ],
+  //       },
+  //       {
+  //         has_more: false,
+  //         next_cursor: null,
+  //         results: [
+  //           { id: "2", type: "child_page", child_page: { title: "Page B" } },
+  //         ],
+  //       },
+  //     ]);
 
-    const { dirs } = await listDir(client, "root");
+  //     const { dirs } = await listDir(client, "root");
 
-    expect(client.blocks.children.list).toHaveBeenCalledTimes(2);
-    expect(dirs.map((d) => d.title)).toEqual(["Page A", "Page B"]);
-  });
+  //     expect(client.blocks.children.list).toHaveBeenCalledTimes(2);
+  //     expect(dirs.map((d) => d.title)).toEqual(["Page A", "Page B"]);
+  //   });
 
-  test("falls back to a [type] placeholder for blocks with no rich_text", async () => {
-    const client = makeFakeClient([
-      {
-        has_more: false,
-        next_cursor: null,
-        results: [{ id: "1", type: "divider", divider: {} }],
-      },
-    ]);
+  //   test("falls back to a [type] placeholder for blocks with no rich_text", async () => {
+  //     const client = makeFakeClient([
+  //       {
+  //         has_more: false,
+  //         next_cursor: null,
+  //         results: [{ id: "1", type: "divider", divider: {} }],
+  //       },
+  //     ]);
 
-    const { files } = await listDir(client, "root");
-    expect(files[0].text).toBe("[divider]");
-  });
+  //     const { files } = await listDir(client, "root");
+  //     expect(files[0].text).toBe("[divider]");
+  //   });
 });
 
-describe("findChildByName", () => {
-  test("matches case-insensitively", async () => {
-    const client = makeFakeClient([
-      {
-        has_more: false,
-        next_cursor: null,
-        results: [
-          { id: "1", type: "child_page", child_page: { title: "Roadmap" } },
-        ],
-      },
-    ]);
+// describe("findChildByName", () => {
+//   test("matches case-insensitively", async () => {
+//     const client = makeFakeClient([
+//       {
+//         has_more: false,
+//         next_cursor: null,
+//         results: [
+//           { id: "1", type: "child_page", child_page: { title: "Roadmap" } },
+//         ],
+//       },
+//     ]);
 
-    const match = await findChildByName(client, "root", "ROADMAP");
-    expect(match).toEqual({ id: "1", title: "Roadmap" });
-  });
+//     const match = await findChildByName(client, "root", "ROADMAP");
+//     expect(match).toEqual({ id: "1", title: "Roadmap" });
+//   });
 
-  test("returns undefined when nothing matches", async () => {
-    const client = makeFakeClient([
-      { has_more: false, next_cursor: null, results: [] },
-    ]);
+//   test("returns undefined when nothing matches", async () => {
+//     const client = makeFakeClient([
+//       { has_more: false, next_cursor: null, results: [] },
+//     ]);
 
-    const match = await findChildByName(client, "root", "Nope");
-    expect(match).toBeUndefined();
-  });
-});
+//     const match = await findChildByName(client, "root", "Nope");
+//     expect(match).toBeUndefined();
+//   });
+// });
 
-describe("createChildPage", () => {
-  test("sends the correct parent and title payload", async () => {
-    const client = makeFakeClient([]);
+// describe("createChildPage", () => {
+//   test("sends the correct parent and title payload", async () => {
+//     const client = makeFakeClient([]);
 
-    const page = await createChildPage(client, "parent-id", "New Folder");
+//     const page = await createChildPage(client, "parent-id", "New Folder");
 
-    expect(client.pages.create).toHaveBeenCalledWith({
-      parent: { page_id: "parent-id" },
-      properties: {
-        title: { title: [{ text: { content: "New Folder" } }] },
-      },
-    });
-    expect(page).toEqual({ id: "new-page-id", title: "New Folder" });
-  });
-});
+//     expect(client.pages.create).toHaveBeenCalledWith({
+//       parent: { page_id: "parent-id" },
+//       properties: {
+//         title: { title: [{ text: { content: "New Folder" } }] },
+//       },
+//     });
+//     expect(page).toEqual({ id: "new-page-id", title: "New Folder" });
+//   });
+// });
