@@ -4,20 +4,6 @@ A little CLI that lets you browse around your Notion workspace like it's a files
 
 I made this because I got tired of Notion's page-in-page-out navigation.
 
-## What it can do right now
-
-```
-ls [-a]        list sub-pages in current page (-a also lists text blocks)
-cd <name>      move into a sub-page
-cd ..          move up one level
-cd / | cd      return to root
-pwd            print current path
-mkdir <name>   create a new sub-page
-open           open the current page in your browser or app
-help           show this message
-exit | quit    leave the shell
-```
-
 ## Setup
 
 You'll need Node 18+ and a Notion account.

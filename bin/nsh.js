@@ -8,7 +8,8 @@ const {
   makeClient,
   listDir,
   findChildByName,
-  findRecursive,
+  // findRecursive,
+  findDir,
   catPage,
   createChildPage,
 } = require("../lib/notion");
@@ -93,20 +94,20 @@ async function cmdCd(args) {
   path.push({ id: match.id, title: match.title });
 }
 
-// async function cmdCat(args) {
-//   const target = args[0];
-//   if (!target) {
-//     console.log("usage: cat <page-name>");
-//     return;
-//   }
-//   const match = await findChildByName(client, cwd().id, target);
-//   if (!match) {
-//     console.log(`cat: no such page: ${target}`);
-//     return;
-//   }
-//   const text = await catPage(client, match.id);
-//   console.log(text || "(no text content)");
-// }
+async function cmdCat(args) {
+  const target = args[0];
+  if (!target) {
+    console.log("usage: cat <page-name>");
+    return;
+  }
+  const match = await findChildByName(client, cwd().id, target);
+  if (!match) {
+    console.log(`cat: no such page: ${target}`);
+    return;
+  }
+  const text = await catPage(client, match.id);
+  console.log(text || "(no text content)");
+}
 
 // async function cmdFind(args) {
 //   const target = args[0];
@@ -121,9 +122,26 @@ async function cmdCd(args) {
 //     return;
 //   }
 //   console.log(`found: /${result.path.join("/")}`);
-//   console.log(`pageId: ${result.id}`);
 //   console.log(`url: https://www.notion.so/${result.id.replace(/-/g, "")}`);
 // }
+
+async function cmdFindDir(args) {
+  const target = args[0];
+  if (!target) {
+    console.log("usage: findDir <page-name>");
+    return;
+  }
+  console.log(`searching from ${pwdString()} ... \n`);
+  const results = await findDir(client, cwd().id, target);
+  if (results.length === 0) {
+    console.log(`findDir: no match for "${target}" within search depth`);
+    return;
+  }
+  results.forEach((result) => {
+    console.log(`found: /${result.path.join("/")}`);
+    console.log(`url: https://www.notion.so/${result.id.replace(/-/g, "")} \n`);
+  });
+}
 
 async function cmdMkdir(args) {
   const name = args.join(" ");
@@ -140,6 +158,12 @@ async function cmdMkdir(args) {
   console.log(`created "${name}"`);
 }
 
+function cmdOpen() {
+  const url = `https://www.notion.so/${cwd().id.replace(/-/g, "")}`;
+  console.log(`opening ${pwdString()} ...`);
+  openUrl(url);
+}
+
 function cmdHelp() {
   console.log(
     [
@@ -150,18 +174,13 @@ function cmdHelp() {
       "pwd            print current path",
       "mkdir <name>   create a new sub-page",
       "open           open the current page in your browser",
-      // "cat <name>     print text content of a sub-page",
+      "cat <name>     print text content of a sub-page",
+      "findDir <name>  recursively search for a sub-page by name",
       // "find <name>    recursively search for a sub-page by name",
       "help           show this message",
       "exit | quit    leave the shell",
     ].join("\n"),
   );
-}
-
-function cmdOpen() {
-  const url = `https://www.notion.so/${cwd().id.replace(/-/g, "")}`;
-  console.log(`opening ${pwdString()} ...`);
-  openUrl(url);
 }
 
 async function handleLine(line) {
@@ -186,9 +205,12 @@ async function handleLine(line) {
       case "open":
         cmdOpen();
         break;
-      // case "cat":
-      //   await cmdCat(args);
-      //   break;
+      case "cat":
+        await cmdCat(args);
+        break;
+      case "findDir":
+        await cmdFindDir(args);
+        break;
       // case "find":
       //   await cmdFind(args);
       //   break;
