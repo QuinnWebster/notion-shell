@@ -33,10 +33,7 @@ Then open `.env` and fill in:
 ```
 NOTION_TOKEN=secret_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 NOTION_ROOT_PAGE_ID=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-APPLICATION_TYPE=web
 ```
-
-(`APPLICATION_TYPE` controls what `open` does — set it to `web` to open pages in your browser, or `app` if you want it to hand off to the Notion desktop app instead.)
 
 **6. Link it so you can just type `nsh` to open the shell**
 
@@ -52,16 +49,29 @@ This makes the `nsh` command available globally on your machine, pointing back a
 nsh
 ```
 
+## Config
+
+`open` needs to know whether to launch pages in your browser or hand off to the Notion desktop app. That's controlled by a small config file at `~/.nshrc.json`, set from inside the shell:
+
+```
+config set applicationType web
+config set applicationType app
+```
+
+Defaults to `web` if you never set it. You can check the current value with:
+
+```
+config get applicationType
+```
+
 ## Why I built this
 
 Honestly, mostly for myself — I live in the terminal for everything else, so having Notion be the one thing I had to alt-tab and click through for felt off. Figured other people who think the same way might find it useful too.
 
 ## Roadmap
 
-### Commands I want to add
+### TODO
 
-- `cat`
-- `find`
 - Better handling of Notion databases (right now they just show up as directories, which isn't quite right)
 - Maybe a config file so you can save multiple roots and switch between workspaces
 - Add more tests
