@@ -28,9 +28,6 @@ function makeFakeClient(pages) {
 
 describe("listDir", () => {
   test("splits child_page/child_database into dirs, everything else into files", async () => {
-    console.log(
-      "test: splits child_page/child_database into dirs, everything else into files",
-    );
     const client = makeFakeClient([
       {
         has_more: false,
