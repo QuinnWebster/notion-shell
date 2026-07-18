@@ -5,8 +5,8 @@ const {
   loadConfig,
   saveConfig,
   CONFIG_PATH,
-  VALID_KEYS,
-  isValidKey,
+  CONFIG_SCHEMA,
+  isValidValue,
 } = require("../lib/config");
 
 let config = loadConfig();
@@ -151,12 +151,23 @@ async function cmdFindPage(args) {
     console.log("usage: findPAge <page-name>");
     return;
   }
+
   console.log(`searching from ${pwdString()} ... \n`);
-  const results = await findPage(client, cwd().id, target, 10, fuzzy);
+
+  const results = await findPage(
+    client,
+    cwd().id,
+    target,
+    config.maxDepth,
+    fuzzy,
+    config.visitLimit,
+  );
+
   if (results.length === 0) {
     console.log(`findPage: no match for "${target}" within search depth`);
     return;
   }
+
   results.forEach((result) => {
     console.log(`found: /${result.path.join("/")}`);
     console.log(`url: https://www.notion.so/${result.id.replace(/-/g, "")} \n`);
@@ -214,7 +225,6 @@ async function cmdOpen(args) {
     );
   }
 }
-
 function cmdConfig(args) {
   const [action, key, value] = args;
 
@@ -223,33 +233,44 @@ function cmdConfig(args) {
       console.log("usage: config get <key>");
       return;
     }
-    if (!(key in VALID_KEYS)) {
+    if (!(key in CONFIG_SCHEMA)) {
       console.log(
-        `config: unknown key "${key}". valid keys: ${Object.keys(VALID_KEYS).join(", ")}`,
+        `config: unknown key "${key}". valid keys: ${Object.keys(CONFIG_SCHEMA).join(", ")}`,
       );
       return;
     }
     console.log(config[key] ?? "(not set)");
     return;
   }
+
   if (action === "set") {
-    if (!(key in VALID_KEYS)) {
+    if (!key || value === undefined) {
+      console.log("usage: config set <key> <value>");
+      return;
+    }
+    if (!(key in CONFIG_SCHEMA)) {
       console.log(
-        `config: unknown key "${key}". valid keys: ${Object.keys(VALID_KEYS).join(", ")}`,
+        `config: unknown key "${key}". valid keys: ${Object.keys(CONFIG_SCHEMA).join(", ")}`,
       );
       return;
     }
-    if (!isValidKey(key, value)) {
-      console.log(
-        `config: invalid value "${value}" for ${key}. valid values: ${VALID_KEYS[key].join(", ")}`,
-      );
+    if (!isValidValue(key, value)) {
+      const schema = CONFIG_SCHEMA[key];
+      const hint =
+        schema.type === "enum"
+          ? `valid values: ${schema.options.join(", ")}`
+          : `must be a whole number between ${schema.min} and ${schema.max}`;
+      console.log(`config: invalid value "${value}" for ${key}. ${hint}`);
       return;
     }
-    config[key] = value;
+
+    const schema = CONFIG_SCHEMA[key];
+    config[key] = schema.type === "number" ? Number(value) : value;
     saveConfig(config);
-    console.log(`set ${key} = ${value}`);
+    console.log(`set ${key} = ${config[key]}`);
     return;
   }
+
   console.log("usage: config get <key> | config set <key> <value>");
 }
 
