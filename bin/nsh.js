@@ -1,13 +1,24 @@
 #!/usr/bin/env node
 require("dotenv").config();
 
+const {
+  loadConfig,
+  saveConfig,
+  CONFIG_PATH,
+  CONFIG_SCHEMA,
+  isValidValue,
+} = require("../lib/config");
+
+let config = loadConfig();
+
 const { exec } = require("child_process");
 const readline = require("readline");
 const {
   makeClient,
   listDir,
   findChildByName,
-  findRecursive,
+  // findRecursive,
+  findPage,
   catPage,
   createChildPage,
 } = require("../lib/notion");
@@ -59,6 +70,32 @@ function openUrl(url) {
   });
 }
 
+async function resolvePath(target) {
+  let stack;
+  let segments;
+
+  if (target.startsWith("/")) {
+    stack = [path[0]];
+    segments = target.slice(1).split("/").filter(Boolean);
+  } else {
+    stack = [...path]; // copy of current breadcrumb, so we don't mutate real path
+    segments = target.split("/").filter(Boolean);
+  }
+
+  for (const seg of segments) {
+    if (seg === "..") {
+      if (stack.length > 1) stack.pop();
+      continue;
+    }
+    const current = stack[stack.length - 1];
+    const match = await findChildByName(client, current.id, seg);
+    if (!match) return null;
+    stack.push({ id: match.id, title: match.title });
+  }
+
+  return stack[stack.length - 1];
+}
+
 async function cmdLs(args) {
   const showAll = args.includes("-a");
   const { dirs, files } = await listDir(client, cwd().id);
@@ -91,37 +128,51 @@ async function cmdCd(args) {
   path.push({ id: match.id, title: match.title });
 }
 
-// async function cmdCat(args) {
-//   const target = args[0];
-//   if (!target) {
-//     console.log("usage: cat <page-name>");
-//     return;
-//   }
-//   const match = await findChildByName(client, cwd().id, target);
-//   if (!match) {
-//     console.log(`cat: no such page: ${target}`);
-//     return;
-//   }
-//   const text = await catPage(client, match.id);
-//   console.log(text || "(no text content)");
-// }
+async function cmdCat(args) {
+  const target = args[0];
+  if (!target) {
+    console.log("usage: cat <page-name>");
+    return;
+  }
+  const match = await findChildByName(client, cwd().id, target);
+  if (!match) {
+    console.log(`cat: no such page: ${target}`);
+    return;
+  }
+  const text = await catPage(client, match.id);
+  console.log(text || "(no text content)");
+}
 
-// async function cmdFind(args) {
-//   const target = args[0];
-//   if (!target) {
-//     console.log("usage: find <page-name>");
-//     return;
-//   }
-//   console.log(`searching from ${pwdString()} ...`);
-//   const result = await findRecursive(client, cwd().id, target);
-//   if (!result) {
-//     console.log(`find: no match for "${target}" within search depth`);
-//     return;
-//   }
-//   console.log(`found: /${result.path.join("/")}`);
-//   console.log(`pageId: ${result.id}`);
-//   console.log(`url: https://www.notion.so/${result.id.replace(/-/g, "")}`);
-// }
+async function cmdFindPage(args) {
+  const fuzzy = args.includes("-f");
+  const target = args.filter((a) => a !== "-f").join(" ");
+
+  if (!target) {
+    console.log("usage: findPAge <page-name>");
+    return;
+  }
+
+  console.log(`searching from ${pwdString()} ... \n`);
+
+  const results = await findPage(
+    client,
+    cwd().id,
+    target,
+    config.maxDepth,
+    fuzzy,
+    config.visitLimit,
+  );
+
+  if (results.length === 0) {
+    console.log(`findPage: no match for "${target}" within search depth`);
+    return;
+  }
+
+  results.forEach((result) => {
+    console.log(`found: /${result.path.join("/")}`);
+    console.log(`url: https://www.notion.so/${result.id.replace(/-/g, "")} \n`);
+  });
+}
 
 async function cmdMkdir(args) {
   const name = args.join(" ");
@@ -138,28 +189,89 @@ async function cmdMkdir(args) {
   console.log(`created "${name}"`);
 }
 
-function cmdOpenWeb() {
-  const url = `https://www.notion.so/${cwd().id.replace(/-/g, "")}`;
-  console.log(`opening ${pwdString()} ...`);
+function cmdOpenWeb(target) {
+  const url = `https://www.notion.so/${target.id.replace(/-/g, "")}`;
+  console.log(`opening ${target.title} ...`);
   openUrl(url);
 }
 
-function cmdOpenApp() {
-  const url = `notion://www.notion.so/${cwd().id.replace(/-/g, "")}`;
-  console.log(`syncing Notion app to ${pwdString()} ...`);
+function cmdOpenApp(target) {
+  const url = `notion://www.notion.so/${target.id.replace(/-/g, "")}`;
+  console.log(`syncing Notion app to ${target.title} ...`);
   openUrl(url);
 }
 
-function cmdOpen() {
-  if (process.env.APPLICATION_TYPE === "app") {
-    cmdOpenApp();
-  } else if (process.env.APPLICATION_TYPE === "web") {
-    cmdOpenWeb();
+async function cmdOpen(args) {
+  let target;
+
+  if (args[0]) {
+    const resolved = await resolvePath(args[0]);
+    if (!resolved) {
+      console.log(`open: no such page: ${args[0]}`);
+      return;
+    }
+    target = resolved;
+  } else {
+    target = { id: cwd().id, title: pwdString() };
+  }
+
+  if (config.applicationType === "app") {
+    cmdOpenApp(target);
+  } else if (config.applicationType === "web") {
+    cmdOpenWeb(target);
   } else {
     console.log(
-      "APPLICATION_TYPE env var not set. Set it to either 'desktop' or 'web'.",
+      `applicationType not set in ${CONFIG_PATH}. Run: config set applicationType web|app`,
     );
   }
+}
+function cmdConfig(args) {
+  const [action, key, value] = args;
+
+  if (action === "get") {
+    if (!key) {
+      console.log("usage: config get <key>");
+      return;
+    }
+    if (!(key in CONFIG_SCHEMA)) {
+      console.log(
+        `config: unknown key "${key}". valid keys: ${Object.keys(CONFIG_SCHEMA).join(", ")}`,
+      );
+      return;
+    }
+    console.log(config[key] ?? "(not set)");
+    return;
+  }
+
+  if (action === "set") {
+    if (!key || value === undefined) {
+      console.log("usage: config set <key> <value>");
+      return;
+    }
+    if (!(key in CONFIG_SCHEMA)) {
+      console.log(
+        `config: unknown key "${key}". valid keys: ${Object.keys(CONFIG_SCHEMA).join(", ")}`,
+      );
+      return;
+    }
+    if (!isValidValue(key, value)) {
+      const schema = CONFIG_SCHEMA[key];
+      const hint =
+        schema.type === "enum"
+          ? `valid values: ${schema.options.join(", ")}`
+          : `must be a whole number between ${schema.min} and ${schema.max}`;
+      console.log(`config: invalid value "${value}" for ${key}. ${hint}`);
+      return;
+    }
+
+    const schema = CONFIG_SCHEMA[key];
+    config[key] = schema.type === "number" ? Number(value) : value;
+    saveConfig(config);
+    console.log(`set ${key} = ${config[key]}`);
+    return;
+  }
+
+  console.log("usage: config get <key> | config set <key> <value>");
 }
 
 function cmdHelp() {
@@ -172,8 +284,10 @@ function cmdHelp() {
       "pwd            print current path",
       "mkdir <name>   create a new sub-page",
       "open           open the current page in your browser",
-      // "cat <name>     print text content of a sub-page",
-      // "find <name>    recursively search for a sub-page by name",
+      "cat <name>     print text content of a sub-page",
+      "findPage <name>  recursively search for a sub-page by name",
+      "config get <key>          view a config value",
+      "config set <key> <value>  set a config value (e.g. config set applicationType app)",
       "help           show this message",
       "exit | quit    leave the shell",
     ].join("\n"),
@@ -181,7 +295,7 @@ function cmdHelp() {
 }
 
 async function handleLine(line) {
-  const parts = line.trim().split(/\s+/).filter(Boolean);
+  const parts = tokenize(line.trim());
   if (parts.length === 0) return;
   const [cmd, ...args] = parts;
 
@@ -200,20 +314,23 @@ async function handleLine(line) {
         await cmdMkdir(args);
         break;
       case "open":
-        cmdOpen();
+        await cmdOpen(args);
         break;
-      // case "cat":
-      //   await cmdCat(args);
-      //   break;
-      // case "find":
-      //   await cmdFind(args);
-      //   break;
+      case "cat":
+        await cmdCat(args);
+        break;
+      case "findPage":
+        await cmdFindPage(args);
+        break;
       case "help":
         cmdHelp();
         break;
       case "clear":
       case "cls":
         console.clear();
+        break;
+      case "config":
+        cmdConfig(args);
         break;
       case "exit":
       case "quit":
@@ -225,6 +342,16 @@ async function handleLine(line) {
   } catch (err) {
     console.error(`error: ${err.message}`);
   }
+}
+
+function tokenize(line) {
+  const tokens = [];
+  const regex = /"([^"]*)"|'([^']*)'|(\S+)/g;
+  let match;
+  while ((match = regex.exec(line)) !== null) {
+    tokens.push(match[1] ?? match[2] ?? match[3]);
+  }
+  return tokens;
 }
 
 // This should be in a seperate config file
@@ -245,12 +372,11 @@ const ALL_COMMANDS = [
 ];
 
 function completer(line, callback) {
-  const parts = line.trim().split(/\s+/);
+  const parts = tokenize(line);
 
-  if (parts.length === 1) {
-    const partial = parts[0];
+  if (parts.length === 0 || (parts.length === 1 && !line.endsWith(" "))) {
+    const partial = parts[0] || "";
     const hits = ALL_COMMANDS.filter((c) => c.startsWith(partial));
-
     return callback(null, [hits, partial]);
   }
 
